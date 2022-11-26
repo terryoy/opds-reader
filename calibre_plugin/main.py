@@ -7,6 +7,7 @@ __license__   = "GPL v3"
 
 import sys
 import datetime
+from urllib.parse import urlparse
 from PyQt6.QtCore import Qt, QSortFilterProxyModel, QStringListModel
 from PyQt6.QtWidgets import QDialog, QGridLayout, QLineEdit, QComboBox, QPushButton, QCheckBox, QMessageBox, QLabel, QAbstractItemView, QTableView, QHeaderView
 
@@ -20,6 +21,8 @@ class DynamicBook(dict):
     pass
 
 class OpdsDialog(QDialog):
+    username = ""
+    password = ""
 
     def __init__(self, gui, icon, do_user_config):
         QDialog.__init__(self, gui)
@@ -66,6 +69,7 @@ class OpdsDialog(QDialog):
 
         # Initially download the catalogs found in the root catalog of the URL
         # selected at startup.  Fail quietly on failing to open the URL
+        self.set_auth(self.opdsUrlEditor.currentText())
         catalogsTuple = self.model.downloadOpdsRootCatalog(self.gui, self.opdsUrlEditor.currentText(), False)
         print(catalogsTuple)
         firstCatalogTitle = catalogsTuple[0]
@@ -149,7 +153,9 @@ class OpdsDialog(QDialog):
         self.resize(self.sizeHint())
 
     def opdsUrlEditorActivated(self, text):
-        prefs['opds_url'] = config.saveOpdsUrlCombobox(self.opdsUrlEditor)
+        opds_url = config.saveOpdsUrlCombobox(self.opdsUrlEditor)
+        prefs['opds_url'] = opds_url
+        self.set_auth(self.opdsUrlEditor.currentText())
         catalogsTuple = self.model.downloadOpdsRootCatalog(self.gui, self.opdsUrlEditor.currentText(), True)
         firstCatalogTitle = catalogsTuple[0]
         self.currentOpdsCatalogs = catalogsTuple[1] # A dictionary of title->feedURL
@@ -180,6 +186,9 @@ class OpdsDialog(QDialog):
         if opdsCatalogUrl is None:
             # Just give up quietly
             return
+        # check authentication
+        opdsCatalogUrl = self._fix_auth_url(opdsCatalogUrl)
+
         self.model.downloadOpdsCatalog(self.gui, opdsCatalogUrl)
         if self.model.isCalibreOpdsServer():
             self.model.downloadMetadataUsingCalibreRestApi(self.opdsUrlEditor.currentText())
@@ -192,6 +201,19 @@ class OpdsDialog(QDialog):
     def config(self):
         self.do_user_config(parent=self)
 
+    def set_auth(self, url):
+        parsed_url = urlparse(url)
+        self.username = parsed_url.username or ""
+        self.password = parsed_url.password or ""
+
+    def _fix_auth_url(self, url):
+        validateUrl = urlparse(url)
+        if not validateUrl.username and self.username:
+            return validateUrl._replace(
+                netloc="{}:{}@{}".format(self.username, self.password, validateUrl.netloc)
+            ).geturl()
+        return url
+
     def downloadSelectedBooks(self):
         selectionmodel = self.library_view.selectionModel()
         if selectionmodel.hasSelection():
@@ -202,7 +224,8 @@ class OpdsDialog(QDialog):
 
     def downloadBook(self, book):
         if len(book.links) > 0:
-            self.gui.download_ebook(book.links[0])
+            link = self._fix_auth_url(book.links[0])
+            self.gui.download_ebook(link)
 
     def fixBookTimestamps(self):
         selectionmodel = self.library_view.selectionModel()

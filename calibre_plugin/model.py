@@ -67,6 +67,7 @@ class OpdsBooksModel(QAbstractTableModel):
 
     def downloadOpdsRootCatalog(self, gui, opdsUrl, displayDialogOnErrors):
         feed = feedparser.parse(opdsUrl)
+        #print("feed:", feed)
         if 'bozo_exception' in feed:
             exception = feed['bozo_exception']
             message = 'Failed opening the OPDS URL ' + opdsUrl + ': '
@@ -75,7 +76,7 @@ class OpdsBooksModel(QAbstractTableModel):
                 reason = str(exception.reason)
             error_dialog(gui, _('Failed opening the OPDS URL'), message, reason, displayDialogOnErrors)
             return (None, {})
-        self.serverHeader = feed.headers['server']
+        self.serverHeader = feed.headers.get('server', "")
         print("serverHeader: %s" % self.serverHeader)
         print("feed.entries: %s" % feed.entries)
         catalogEntries = {}
@@ -94,6 +95,7 @@ class OpdsBooksModel(QAbstractTableModel):
     def downloadOpdsCatalog(self, gui, opdsCatalogUrl):
         print("downloading catalog: %s" % opdsCatalogUrl)
         opdsCatalogFeed = feedparser.parse(opdsCatalogUrl)
+        print("opdsCatalogFeed:", opdsCatalogFeed)
         self.books = self.makeMetadataFromParsedOpds(opdsCatalogFeed.entries)
         self.filterBooks()
         QCoreApplication.processEvents()
