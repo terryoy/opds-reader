@@ -7,7 +7,7 @@ __license__   = "GPL v3"
 
 import sys
 import datetime
-from urllib.parse import urlparse
+from urllib.parse import urlparse, quote
 from PyQt6.QtCore import Qt, QSortFilterProxyModel, QStringListModel
 from PyQt6.QtWidgets import QDialog, QGridLayout, QLineEdit, QComboBox, QPushButton, QCheckBox, QMessageBox, QLabel, QAbstractItemView, QTableView, QHeaderView
 
@@ -210,7 +210,7 @@ class OpdsDialog(QDialog):
         validateUrl = urlparse(url)
         if not validateUrl.username and self.username:
             return validateUrl._replace(
-                netloc="{}:{}@{}".format(self.username, self.password, validateUrl.netloc)
+                netloc="{}:{}@{}".format(quote(self.username), quote(self.password), validateUrl.netloc)
             ).geturl()
         return url
 
