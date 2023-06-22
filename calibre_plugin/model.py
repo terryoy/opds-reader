@@ -67,6 +67,7 @@ class OpdsBooksModel(QAbstractTableModel):
 
     def downloadOpdsRootCatalog(self, gui, opdsUrl, displayDialogOnErrors):
         feed = feedparser.parse(opdsUrl)
+        #print("feed:", feed)
         if 'bozo_exception' in feed:
             exception = feed['bozo_exception']
             message = 'Failed opening the OPDS URL ' + opdsUrl + ': '
@@ -75,7 +76,7 @@ class OpdsBooksModel(QAbstractTableModel):
                 reason = str(exception.reason)
             error_dialog(gui, _('Failed opening the OPDS URL'), message, reason, displayDialogOnErrors)
             return (None, {})
-        self.serverHeader = feed.headers['server']
+        self.serverHeader = feed.headers.get('server', "")
         print("serverHeader: %s" % self.serverHeader)
         print("feed.entries: %s" % feed.entries)
         catalogEntries = {}
@@ -94,10 +95,13 @@ class OpdsBooksModel(QAbstractTableModel):
     def downloadOpdsCatalog(self, gui, opdsCatalogUrl):
         print("downloading catalog: %s" % opdsCatalogUrl)
         opdsCatalogFeed = feedparser.parse(opdsCatalogUrl)
+        print("opdsCatalogFeed:", opdsCatalogFeed)
         self.books = self.makeMetadataFromParsedOpds(opdsCatalogFeed.entries)
         self.filterBooks()
         QCoreApplication.processEvents()
         nextUrl = self.findNextUrl(opdsCatalogFeed.feed)
+        if not nextUrl:
+            print("No links found:", opdsCatalogFeed.feed)
         while nextUrl is not None:
             nextFeed = feedparser.parse(nextUrl)
             self.books = self.books + self.makeMetadataFromParsedOpds(nextFeed.entries)
@@ -148,8 +152,8 @@ class OpdsBooksModel(QAbstractTableModel):
         authors = opdsBookStructure.author.replace(u'& ', u'&') if 'author' in opdsBookStructure else ''
         metadata = Metadata(opdsBookStructure.title, authors.split(u'&'))
         metadata.uuid = opdsBookStructure.id.replace('urn:uuid:', '', 1) if 'id' in opdsBookStructure else ''
-        rawTimestamp = opdsBookStructure.updated
-        parsableTimestamp = re.sub('((\.[0-9]+)?\+0[0-9]:00|Z)$', '', rawTimestamp)
+        rawTimestamp = opdsBookStructure.get('updated', '')
+        parsableTimestamp = re.sub('((\.[0-9]+)?\+0[0-9]:00|Z)$', '', rawTimestamp) if rawTimestamp else datetime.datetime.now().strftime('%Y-%m-%dT%H:%M:%S')
         metadata.timestamp = datetime.datetime.strptime(parsableTimestamp, '%Y-%m-%dT%H:%M:%S')
         tags = []
         summary = opdsBookStructure.get(u'summary', u'')
@@ -178,7 +182,7 @@ class OpdsBooksModel(QAbstractTableModel):
         return metadata
 
     def findNextUrl(self, feed):
-        for link in feed.links:
+        for link in feed.get('links', []):
             if link.rel == u'next':
                 return link.href
         return None
